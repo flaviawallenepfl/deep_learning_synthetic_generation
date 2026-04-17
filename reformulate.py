@@ -47,12 +47,23 @@ def main():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument(
         "--model",
-        default="Qwen/Qwen2.5-72B-Instruct",
-        help="Swap to Qwen2.5-32B-Instruct or 7B if VRAM is tight",
+        default="Qwen/Qwen2.5-7B-Instruct-AWQ",
+        help="AWQ 4-bit fits ~10GB. Use Qwen2.5-72B-Instruct on a big GPU.",
+    )
+    p.add_argument(
+        "--dtype",
+        default="float16",
+        choices=["float16", "bfloat16", "auto"],
+        help="Use float16 on V100 (no bf16 hardware).",
+    )
+    p.add_argument(
+        "--quantization",
+        default="awq",
+        help="Matches the model. Pass 'none' for unquantized models.",
     )
     p.add_argument("--tensor-parallel-size", type=int, default=1)
-    p.add_argument("--max-model-len", type=int, default=4096)
-    p.add_argument("--gpu-memory-utilization", type=float, default=0.90)
+    p.add_argument("--max-model-len", type=int, default=2048)
+    p.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     p.add_argument("--temperature", type=float, default=0.7)
     p.add_argument("--top-p", type=float, default=0.9)
     p.add_argument("--max-tokens", type=int, default=512)
@@ -75,12 +86,14 @@ def main():
     ).reset_index(drop=True)
     originals = sample[args.column].astype(str).tolist()
 
+    quantization = None if args.quantization.lower() == "none" else args.quantization
     llm = LLM(
         model=args.model,
         tensor_parallel_size=args.tensor_parallel_size,
         max_model_len=args.max_model_len,
         gpu_memory_utilization=args.gpu_memory_utilization,
-        dtype="bfloat16",
+        dtype=args.dtype,
+        quantization=quantization,
         trust_remote_code=True,
     )
     tokenizer = llm.get_tokenizer()
