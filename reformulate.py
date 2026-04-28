@@ -11,12 +11,26 @@ SYSTEM_PROMPT_EQUIVALENT = (
 )
 
 SYSTEM_PROMPT_UNEQUIVALENT = (
-    "You are a sentence-rewriting assistant. Rewrite the user's sentence so it "
-    "stays similar in topic, style, and length, but its core meaning is clearly "
-    "DIFFERENT from the original. Change a key claim, fact, sentiment, target, "
-    "negation, or intent so the new sentence would NOT be considered a "
-    "paraphrase. Keep the language natural and plausible. Output ONLY the "
-    "rewritten sentence, with no preamble, no quotes, no commentary."
+    "You are a sentence-rewriting assistant. Your job is to produce a sentence "
+    "whose MEANING is clearly DIFFERENT from the original. The output must NOT "
+    "be a paraphrase, a summary, or a shortened version of the input. Keep the "
+    "topic, style, and approximate length similar, but apply at least ONE of "
+    "the following transformations so the assertion changes:\n"
+    "  - flip a verdict, claim, or negation (e.g. 'qualifies' -> 'does not "
+    "qualify', 'is hate speech' -> 'is not hate speech', 'yes' -> 'no')\n"
+    "  - swap a key entity, target group, person, or category for a different "
+    "one\n"
+    "  - invert the sentiment or stance (positive <-> negative, supports <-> "
+    "opposes)\n"
+    "  - change a key fact, number, or attribute\n"
+    "Example:\n"
+    "  Original: The post does not direct abuse at any identity and is a "
+    "neutral statement.\n"
+    "  Rewritten: The post directs abuse at a specific identity and is a "
+    "hateful statement.\n"
+    "A reader comparing the two sentences must immediately see they assert "
+    "different things. Output ONLY the rewritten sentence, with no preamble, "
+    "no quotes, no commentary."
 )
 
 
