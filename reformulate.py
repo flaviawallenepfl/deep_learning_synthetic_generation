@@ -3,19 +3,28 @@ import pandas as pd
 from vllm import LLM, SamplingParams
 
 
-SYSTEM_PROMPT = (
+SYSTEM_PROMPT_EQUIVALENT = (
     "You are a precise paraphrasing assistant. Rewrite the user's sentence in "
     "different words while preserving the exact meaning, tone, named entities, "
     "numbers, and intent. Do not add, omit, or infer information. Output ONLY "
     "the reformulated sentence, with no preamble, no quotes, no commentary."
 )
 
+SYSTEM_PROMPT_UNEQUIVALENT = (
+    "You are a sentence-rewriting assistant. Rewrite the user's sentence so it "
+    "stays similar in topic, style, and length, but its core meaning is clearly "
+    "DIFFERENT from the original. Change a key claim, fact, sentiment, target, "
+    "negation, or intent so the new sentence would NOT be considered a "
+    "paraphrase. Keep the language natural and plausible. Output ONLY the "
+    "rewritten sentence, with no preamble, no quotes, no commentary."
+)
 
-def build_prompts(tokenizer, sentences):
+
+def build_prompts(tokenizer, sentences, system_prompts):
     prompts = []
-    for s in sentences:
+    for s, sys in zip(sentences, system_prompts):
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": sys},
             {"role": "user", "content": str(s)},
         ]
         prompts.append(
@@ -36,14 +45,19 @@ def main():
     p.add_argument(
         "--output",
         default="reformulated.csv",
-        help="Path to output CSV with columns [original, synthetic]",
+        help="Path to output CSV. Original columns are preserved with an added 'synthetic' column.",
     )
     p.add_argument(
         "--column",
         default="post",
         help="Column in input to reformulate",
     )
-    p.add_argument("--n-samples", type=int, default=50)
+    p.add_argument(
+        "--n-samples",
+        type=int,
+        default=50,
+        help="Number of rows to sample. Use -1 (or 0) to reformulate the full dataset.",
+    )
     p.add_argument("--seed", type=int, default=42)
     p.add_argument(
         "--model",
@@ -81,9 +95,12 @@ def main():
 
     df = df[df[args.column].notna()]
     df = df[df[args.column].astype(str).str.strip() != ""]
-    sample = df.sample(
-        n=min(args.n_samples, len(df)), random_state=args.seed
-    ).reset_index(drop=True)
+    if args.n_samples and args.n_samples > 0:
+        sample = df.sample(
+            n=min(args.n_samples, len(df)), random_state=args.seed
+        ).reset_index(drop=True)
+    else:
+        sample = df.reset_index(drop=True)
     originals = sample[args.column].astype(str).tolist()
 
     quantization = None if args.quantization.lower() == "none" else args.quantization
@@ -98,7 +115,15 @@ def main():
     )
     tokenizer = llm.get_tokenizer()
 
-    prompts = build_prompts(tokenizer, originals)
+    labels = [
+        "equivalent" if i % 2 == 0 else "unequivalent"
+        for i in range(len(originals))
+    ]
+    system_prompts = [
+        SYSTEM_PROMPT_EQUIVALENT if l == "equivalent" else SYSTEM_PROMPT_UNEQUIVALENT
+        for l in labels
+    ]
+    prompts = build_prompts(tokenizer, originals, system_prompts)
     sampling = SamplingParams(
         temperature=args.temperature,
         top_p=args.top_p,
@@ -108,7 +133,9 @@ def main():
     outputs = llm.generate(prompts, sampling, use_tqdm=True)
     synthetic = [o.outputs[0].text.strip() for o in outputs]
 
-    out_df = pd.DataFrame({"original": originals, "synthetic": synthetic})
+    out_df = sample.copy()
+    out_df["synthetic"] = synthetic
+    out_df["meaning"] = labels
     if args.output.lower().endswith((".xlsx", ".xls")):
         out_df.to_excel(args.output, index=False)
     else:
